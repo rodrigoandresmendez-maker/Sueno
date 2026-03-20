@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sueño">
+<meta name="theme-color" content="#0d0b1e">
+<title>Sleep Tracker</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #0d0b1e;
+    --surface: rgba(255,255,255,0.06);
+    --surface2: rgba(255,255,255,0.10);
+    --border: rgba(255,255,255,0.12);
+    --accent: #818cf8;
+    --accent2: #c084fc;
+    --red: #f87171;
+    --green: #34d399;
+    --yellow: #fbbf24;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --faint: #475569;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    height: 100dvh;
+    max-width: 430px;
+    margin: 0 auto;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Ambient background blobs */
+  .blob {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.18;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .blob1 { width: 300px; height: 300px; background: #6366f1; top: -80px; left: -60px; }
+  .blob2 { width: 250px; height: 250px; background: #a855f7; bottom: 100px; right: -60px; }
+  .blob3 { width: 200px; height: 200px; background: #0ea5e9; bottom: -50px; left: 20px; }
+
+  /* ---- HEADER ---- */
+  .header {
+    padding: env(safe-area-inset-top, 48px) 20px 0;
+    padding-top: max(env(safe-area-inset-top), 44px);
+    position: relative; z-index: 10;
+    flex-shrink: 0;
+  }
+  .header-top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 16px;
+  }
+  .header-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+  .header-time {
+    font-size: 13px; color: var(--muted); font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- TABS ---- */
+  .tabs {
+    display: flex; gap: 4px;
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 4px;
+    margin: 0 20px 0;
+    position: relative; z-index: 10;
+    flex-shrink: 0;
+  }
+  .tab {
+    flex: 1; padding: 8px 0; border: none; border-radius: 9px;
+    background: transparent; color: var(--muted);
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s;
+    letter-spacing: 0.01em;
+  }
+  .tab.active {
+    background: rgba(255,255,255,0.95);
+    color: #1e1b4b;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  /* ---- SCROLL CONTENT ---- */
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px 20px;
+    padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 16px);
+    position: relative; z-index: 10;
+    -webkit-overflow-scrolling: touch;
+  }
+  .content::-webkit-scrollbar { display: none; }
+
+  /* ---- ACTIVE SESSION CARD ---- */
+  .session-card {
+    background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(168,85,247,0.15));
+    border: 1px solid rgba(129,140,248,0.3);
+    border-radius: 24px;
+    padding: 22px 20px;
+    text-align: center;
+    margin-bottom: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .session-card::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(129,140,248,0.15), transparent 70%);
+  }
+  .session-label {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 6px;
+  }
+  .session-time {
+    font-family: 'DM Serif Display', serif;
+    font-size: 52px; line-height: 1;
+    color: #fff;
+    letter-spacing: -0.03em;
+  }
+  .session-since { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .wakeup-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(248,113,113,0.2); border: 1px solid rgba(248,113,113,0.3);
+    border-radius: 99px; padding: 5px 14px;
+    margin-top: 12px; font-size: 13px; color: #fca5a5; font-weight: 600;
+  }
+  .timeline-pills {
+    display: flex; flex-wrap: wrap; justify-content: center;
+    gap: 5px; margin-top: 14px;
+  }
+  .pill {
+    border-radius: 99px; padding: 3px 10px;
+    font-size: 11px; font-weight: 600;
+  }
+
+  /* ---- NOTE INPUT ---- */
+  .note-input {
+    width: 100%; padding: 13px 16px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 14px; color: var(--text);
+    font-size: 14px; font-family: 'DM Sans', sans-serif;
+    outline: none; margin-bottom: 12px;
+    transition: border-color 0.2s;
+  }
+  .note-input:focus { border-color: var(--accent); }
+  .note-input::placeholder { color: var(--faint); }
+
+  /* ---- ACTION BUTTONS ---- */
+  .action-btn {
+    width: 100%;
+    display: flex; align-items: center; gap: 14px;
+    padding: 16px 18px;
+    border: none; border-radius: 18px;
+    cursor: pointer; text-align: left;
+    margin-bottom: 10px;
+    font-family: 'DM Sans', sans-serif;
+    transition: transform 0.12s, box-shadow 0.12s;
+    position: relative; overflow: hidden;
+  }
+  .action-btn:active { transform: scale(0.97); }
+  .btn-sleep    { background: linear-gradient(135deg, #312e81, #4338ca); border: 1px solid rgba(129,140,248,0.3); }
+  .btn-waking   { background: linear-gradient(135deg, #7f1d1d, #991b1b); border: 1px solid rgba(248,113,113,0.3); }
+  .btn-backsleep{ background: linear-gradient(135deg, #064e3b, #065f46); border: 1px solid rgba(52,211,153,0.3); }
+  .btn-final    { background: linear-gradient(135deg, #78350f, #92400e); border: 1px solid rgba(251,191,36,0.3); }
+  .btn-icon { font-size: 30px; flex-shrink: 0; }
+  .btn-label { font-size: 16px; font-weight: 700; color: #fff; }
+  .btn-time { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+  /* ---- EMPTY STATE ---- */
+  .empty-state {
+    text-align: center; padding: 48px 20px;
+    color: var(--muted);
+  }
+  .empty-icon { font-size: 52px; margin-bottom: 14px; }
+  .empty-text { font-size: 15px; line-height: 1.5; }
+
+  /* ---- HISTORY CARDS ---- */
+  .hist-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  .hist-header {
+    padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px;
+    cursor: pointer;
+  }
+  .hist-date { font-weight: 700; font-size: 14px; color: var(--text); }
+  .hist-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .hist-num { font-size: 20px; font-weight: 800; color: var(--text); }
+  .hist-num-label { font-size: 10px; color: var(--muted); }
+  .hist-chevron { font-size: 12px; color: var(--faint); margin-left: auto; }
+  .hist-body { padding: 0 16px 14px; border-top: 1px solid var(--border); }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 14px 0 10px; }
+  .stat-cell {
+    background: var(--surface2); border-radius: 12px;
+    padding: 10px 8px; text-align: center;
+  }
+  .stat-val { font-size: 15px; font-weight: 800; color: var(--text); }
+  .stat-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
+  .quality-bar-wrap { margin-bottom: 12px; }
+  .quality-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .bar-track { height: 6px; background: rgba(255,255,255,0.1); border-radius: 99px; }
+  .bar-fill { height: 100%; border-radius: 99px; transition: width 0.4s; }
+  .tl-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .tl-dot {
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0;
+  }
+  .tl-name { font-size: 13px; font-weight: 600; flex: 1; }
+  .tl-note { font-size: 11px; color: var(--muted); }
+  .tl-time { font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .delete-btn {
+    margin-top: 10px; padding: 6px 14px;
+    background: none; border: 1px solid rgba(248,113,113,0.4);
+    color: var(--red); border-radius: 8px; font-size: 12px;
+    cursor: pointer; font-family: 'DM Sans', sans-serif;
+  }
+
+  /* ---- STATS TAB ---- */
+  .stats-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 18px 16px; margin-bottom: 12px;
+  }
+  .stats-title {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 14px;
+  }
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stats-cell {
+    background: var(--surface2); border-radius: 14px;
+    padding: 14px 12px; text-align: center;
+  }
+  .stats-icon { font-size: 22px; margin-bottom: 6px; }
+  .stats-val { font-size: 20px; font-weight: 800; color: #fff; }
+  .stats-lbl { font-size: 10px; color: var(--muted); margin-top: 3px; line-height: 1.3; }
+  .chart-row { margin-bottom: 10px; }
+  .chart-meta { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .chart-val { font-weight: 700; }
+
+  /* Pulse animation for active session */
+  @keyframes pulse-ring {
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(1.4); opacity: 0; }
+  }
+  .pulse { position: relative; display: inline-block; }
+  .pulse::before {
+    content: '';
+    position: absolute; inset: -4px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse-ring 2s ease-out infinite;
+  }
+</style>
+</head>
+<body>
+
+<div class="blob blob1"></div>
+<div class="blob blob2"></div>
+<div class="blob blob3"></div>
+
+<div id="app">
+  <div class="header">
+    <div class="header-top">
+      <div class="header-title">🌙 Sueño</div>
+      <div class="header-time" id="clock"></div>
+    </div>
+  </div>
+
+  <div class="tabs" style="margin-bottom: 0; margin-top: 0; padding: 4px; margin: 0 20px 12px;">
+    <button class="tab active" onclick="switchTab('tracker')">Registrar</button>
+    <button class="tab" onclick="switchTab('history')">Historial</button>
+    <button class="tab" onclick="switchTab('stats')">Semana</button>
+  </div>
+
+  <div class="content" id="content"></div>
+</div>
+
+<script>
+const STORAGE_KEY = 'sueño-sessions-v2';
+const ACTIVE_KEY  = 'sueño-active-v2';
+
+const EVENTS = {
+  SLEEP:      { label: 'Me dormí',              icon: '🌙', color: '#818cf8', bg: 'rgba(99,102,241,0.2)'  },
+  WAKE_CHILD: { label: 'Desperté (hijo)',       icon: '👶', color: '#f87171', bg: 'rgba(239,68,68,0.2)'  },
+  BACK_SLEEP: { label: 'Volví a dormir',        icon: '😴', color: '#34d399', bg: 'rgba(52,211,153,0.2)' },
+  WAKE_FINAL: { label: 'Me levanté (final)',    icon: '☀️', color: '#fbbf24', bg: 'rgba(251,191,36,0.2)' },
+};
+
+let sessions = [];
+let active = null;
+let currentTab = 'tracker';
+let clockInterval;
+let elapsedInterval;
+
+// ---- STORAGE ----
+function load() {
+  try { sessions = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { sessions = []; }
+  try { active = JSON.parse(localStorage.getItem(ACTIVE_KEY)) || null; } catch { active = null; }
+}
+function save() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+    if (active) localStorage.setItem(ACTIVE_KEY, JSON.stringify(active));
+    else localStorage.removeItem(ACTIVE_KEY);
+  } catch {}
+}
+
+// ---- TIME UTILS ----
+function fmt(ts) {
+  if (!ts) return '--:--';
+  return new Date(ts).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+}
+function fmtDate(ts) {
+  return new Date(ts).toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+function fmtDur(ms) {
+  if (!ms || ms < 0) return '--';
+  const m = Math.floor(ms / 60000);
+  const h = Math.floor(m / 60);
+  return h > 0 ? `${h}h ${m % 60}m` : `${m}m`;
+}
+function fmtNow() {
+  return new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ---- STATS CALC ----
+function calcStats(evs) {
+  if (!evs || !evs.length) return null;
+  let totalSleep = 0, wakeups = 0, sleepStart = null, lastSleepStart = null;
+  for (const ev of evs) {
+    if (ev.type === 'SLEEP' || ev.type === 'BACK_SLEEP') {
+      if (!sleepStart) sleepStart = ev.ts;
+      lastSleepStart = ev.ts;
+    } else if (ev.type === 'WAKE_CHILD') {
+      wakeups++;
+      if (lastSleepStart) { totalSleep += ev.ts - lastSleepStart; lastSleepStart = null; }
+    } else if (ev.type === 'WAKE_FINAL') {
+      if (lastSleepStart) { totalSleep += ev.ts - lastSleepStart; lastSleepStart = null; }
+    }
+  }
+  const last = evs[evs.length - 1];
+  const duration = sleepStart && last.type === 'WAKE_FINAL' ? last.ts - sleepStart : null;
+  return { totalSleep, wakeups, duration, sleepStart };
+}
+
+// ---- ACTIONS ----
+function getAvailable() {
+  if (!active) return ['SLEEP'];
+  const last = active.events[active.events.length - 1]?.type;
+  if (last === 'SLEEP' || last === 'BACK_SLEEP') return ['WAKE_CHILD', 'WAKE_FINAL'];
+  if (last === 'WAKE_CHILD') return ['BACK_SLEEP', 'WAKE_FINAL'];
+  return [];
+}
+
+function addEvent(type) {
+  const noteEl = document.getElementById('note-input');
+  const note = noteEl ? noteEl.value.trim() : '';
+  const ev = { type, ts: Date.now(), note: note || undefined };
+
+  if (type === 'SLEEP') {
+    active = { id: Date.now(), events: [ev] };
+  } else if (!active) return;
+  else {
+    active.events.push(ev);
+    if (type === 'WAKE_FINAL') {
+      sessions.unshift({ ...active });
+      active = null;
+    }
+  }
+  save();
+  render();
+}
+
+function deleteSession(id) {
+  sessions = sessions.filter(s => s.id !== id);
+  save();
+  render();
+}
+
+// ---- TAB SWITCH ----
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach((el, i) => {
+    el.classList.toggle('active', ['tracker','history','stats'][i] === tab);
+  });
+  render();
+}
+
+// ---- RENDER ----
+function render() {
+  const el = document.getElementById('content');
+  if (currentTab === 'tracker') el.innerHTML = renderTracker();
+  else if (currentTab === 'history') el.innerHTML = renderHistory();
+  else el.innerHTML = renderStats();
+  startElapsed();
+}
+
+function renderTracker() {
+  const available = getAvailable();
+  let html = '';
+
+  // Active session card
+  if (active) {
+    const stats = calcStats(active.events);
+    const elapsed = Date.now() - active.events[0].ts;
+    html += `
+    <div class="session-card">
+      <div class="session-label">Sesión activa</div>
+      <div class="session-time" id="elapsed">${fmtDur(elapsed)}</div>
+      <div class="session-since">Desde las ${fmt(active.events[0].ts)}</div>
+      ${stats && stats.wakeups > 0 ? `<div class="wakeup-badge"><span>👶</span> ${stats.wakeups} despertar${stats.wakeups > 1 ? 'es' : ''}</div>` : ''}
+      <div class="timeline-pills">
+        ${active.events.map(ev => `
+          <div class="pill" style="background:${EVENTS[ev.type].bg}; color:${EVENTS[ev.type].color}">
+            ${EVENTS[ev.type].icon} ${fmt(ev.ts)}
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // Note input
+  html += `<input class="note-input" id="note-input" placeholder="Nota opcional (ej: Mateo lloró...)" autocomplete="off">`;
+
+  // Buttons
+  const btnClass = { SLEEP: 'btn-sleep', WAKE_CHILD: 'btn-waking', BACK_SLEEP: 'btn-backsleep', WAKE_FINAL: 'btn-final' };
+  if (available.length === 0) {
+    html += `<div class="empty-state"><div class="empty-icon">🛏</div><div class="empty-text">Presioná "Me dormí"<br>cuando te vayas a acostar</div></div>`;
+  } else {
+    available.forEach(type => {
+      html += `
+      <button class="action-btn ${btnClass[type]}" onclick="addEvent('${type}')">
+        <span class="btn-icon">${EVENTS[type].icon}</span>
+        <div>
+          <div class="btn-label">${EVENTS[type].label}</div>
+          <div class="btn-time">${fmtNow()}</div>
+        </div>
+      </button>`;
+    });
+  }
+  return html;
+}
+
+function renderHistory() {
+  let html = '';
+  if (active) {
+    html += `<div style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:12px; padding:12px 16px; margin-bottom:12px; font-size:13px; color:#c7d2fe;">
+      🌙 Sesión activa desde las ${fmt(active.events[0].ts)} · ${active.events.length} evento${active.events.length > 1 ? 's' : ''}
+    </div>`;
+  }
+  if (sessions.length === 0) {
+    return html + `<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-text">Todavía no hay noches<br>registradas</div></div>`;
+  }
+  sessions.forEach((s, si) => {
+    const stats = calcStats(s.events);
+    const finished = s.events.some(e => e.type === 'WAKE_FINAL');
+    const pct = stats?.duration ? Math.min(100, Math.round(stats.totalSleep / stats.duration * 100)) : null;
+    const qColor = pct >= 80 ? '#34d399' : pct >= 60 ? '#fbbf24' : '#f87171';
+
+    html += `<div class="hist-card">
+      <div class="hist-header" onclick="toggleHist(${si})">
+        <div style="flex:1">
+          <div class="hist-date">${fmtDate(s.events[0].ts)} ${!finished ? '<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:99px;margin-left:6px;font-weight:700">En curso</span>' : ''}</div>
+          <div class="hist-sub">${fmt(s.events[0].ts)} → ${finished ? fmt(s.events[s.events.length-1].ts) : '...'} ${stats?.duration ? '· <span style="color:#818cf8;font-weight:600">'+fmtDur(stats.duration)+' en cama</span>' : ''}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="hist-num">${fmtDur(stats?.totalSleep)}</div>
+          <div class="hist-num-label">dormido real</div>
+        </div>
+        <div class="hist-chevron" id="chev-${si}">▼</div>
+      </div>
+      <div id="histbody-${si}" style="display:none">
+        <div class="hist-body">
+          <div class="stat-grid">
+            <div class="stat-cell"><div class="stat-val">${fmtDur(stats?.totalSleep)}</div><div class="stat-lbl">Sueño real</div></div>
+            <div class="stat-cell"><div class="stat-val">${stats?.wakeups ?? 0}</div><div class="stat-lbl">Despertares hijos</div></div>
+            <div class="stat-cell"><div class="stat-val">${fmtDur(stats?.duration)}</div><div class="stat-lbl">En cama total</div></div>
+          </div>
+          ${pct !== null ? `<div class="quality-bar-wrap">
+            <div class="quality-row"><span>Calidad del sueño</span><span class="chart-val" style="color:${qColor}">${pct}%</span></div>
+            <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${qColor}"></div></div>
+          </div>` : ''}
+          <div style="margin-top:12px">
+            ${s.events.map(ev => `
+              <div class="tl-item">
+                <div class="tl-dot" style="background:${EVENTS[ev.type].bg}">${EVENTS[ev.type].icon}</div>
+                <div style="flex:1">
+                  <div class="tl-name" style="color:${EVENTS[ev.type].color}">${EVENTS[ev.type].label}</div>
+                  ${ev.note ? `<div class="tl-note">${ev.note}</div>` : ''}
+                </div>
+                <div class="tl-time">${fmt(ev.ts)}</div>
+              </div>`).join('')}
+          </div>
+          <button class="delete-btn" onclick="deleteSession(${s.id})">🗑 Eliminar sesión</button>
+        </div>
+      </div>
+    </div>`;
+  });
+  return html;
+}
+
+function toggleHist(i) {
+  const body = document.getElementById(`histbody-${i}`);
+  const chev = document.getElementById(`chev-${i}`);
+  const open = body.style.display === 'block';
+  body.style.display = open ? 'none' : 'block';
+  chev.textContent = open ? '▼' : '▲';
+}
+
+function renderStats() {
+  const weekAgo = Date.now() - 7 * 24 * 3600000;
+  const ws = sessions.filter(s => s.events[0]?.ts > weekAgo && s.events.some(e => e.type === 'WAKE_FINAL'));
+
+  if (ws.length === 0) {
+    return `<div class="empty-state"><div class="empty-icon">📈</div><div class="empty-text">Necesitás al menos<br>una noche registrada</div></div>`;
+  }
+
+  const avgSleep  = ws.reduce((a,s) => a + (calcStats(s.events)?.totalSleep||0), 0) / ws.length;
+  const avgWakeup = ws.reduce((a,s) => a + (calcStats(s.events)?.wakeups||0), 0) / ws.length;
+  const best      = Math.max(...ws.map(s => calcStats(s.events)?.totalSleep||0));
+  const avgDur    = ws.reduce((a,s) => a + (calcStats(s.events)?.duration||0), 0) / ws.filter(s => calcStats(s.events)?.duration).length;
+
+  let html = `
+  <div class="stats-card">
+    <div class="stats-title">Últimos 7 días · ${ws.length} noche${ws.length > 1 ? 's' : ''}</div>
+    <div class="stats-grid">
+      <div class="stats-cell"><div class="stats-icon">😴</div><div class="stats-val">${fmtDur(avgSleep)}</div><div class="stats-lbl">Promedio sueño real</div></div>
+      <div class="stats-cell"><div class="stats-icon">👶</div><div class="stats-val">${avgWakeup.toFixed(1)}</div><div class="stats-lbl">Despertares promedio</div></div>
+      <div class="stats-cell"><div class="stats-icon">⭐</div><div class="stats-val">${fmtDur(best)}</div><div class="stats-lbl">Mejor noche</div></div>
+      <div class="stats-cell"><div class="stats-icon">🛏</div><div class="stats-val">${fmtDur(avgDur)}</div><div class="stats-lbl">Promedio en cama</div></div>
+    </div>
+  </div>
+  <div class="stats-card">
+    <div class="stats-title">Sueño real por noche</div>`;
+
+  [...ws].reverse().forEach(s => {
+    const st = calcStats(s.events);
+    const hrs = (st?.totalSleep || 0) / 3600000;
+    const pct = Math.min(100, (hrs / 9) * 100);
+    const col = hrs >= 6 ? '#818cf8' : hrs >= 4 ? '#fbbf24' : '#f87171';
+    html += `<div class="chart-row">
+      <div class="chart-meta">
+        <span>${fmtDate(s.events[0].ts)}</span>
+        <span class="chart-val" style="color:${col}">${fmtDur(st?.totalSleep)} · ${st?.wakeups||0} 👶</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col}"></div></div>
+    </div>`;
+  });
+
+  html += `</div>`;
+  return html;
+}
+
+// ---- ELAPSED COUNTER ----
+function startElapsed() {
+  if (elapsedInterval) clearInterval(elapsedInterval);
+  if (!active) return;
+  elapsedInterval = setInterval(() => {
+    const el = document.getElementById('elapsed');
+    if (el) el.textContent = fmtDur(Date.now() - active.events[0].ts);
+    // Update btn times
+    document.querySelectorAll('.btn-time').forEach(b => b.textContent = fmtNow());
+  }, 30000);
+}
+
+// ---- CLOCK ----
+function updateClock() {
+  const el = document.getElementById('clock');
+  if (el) el.textContent = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', weekday: 'short' });
+}
+
+// ---- INSTALL PROMPT ----
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  // Show banner after 3s
+  setTimeout(() => {
+    if (deferredPrompt) showInstallBanner();
+  }, 3000);
+});
+
+function showInstallBanner() {
+  if (document.getElementById('install-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'install-banner';
+  banner.style.cssText = `
+    position:fixed; bottom: max(env(safe-area-inset-bottom),16px); left:16px; right:16px;
+    background:linear-gradient(135deg,#312e81,#4338ca);
+    border:1px solid rgba(129,140,248,0.4); border-radius:16px;
+    padding:14px 16px; display:flex; align-items:center; gap:12px;
+    z-index:100; box-shadow:0 8px 32px rgba(0,0,0,0.4);
+    font-family:'DM Sans',sans-serif;
+  `;
+  banner.innerHTML = `
+    <span style="font-size:24px">📲</span>
+    <div style="flex:1">
+      <div style="font-weight:700;font-size:13px;color:#fff">Instalar en tu pantalla</div>
+      <div style="font-size:11px;color:#a5b4fc;margin-top:2px">Acceso rápido como app</div>
+    </div>
+    <button onclick="installApp()" style="background:#fff;color:#312e81;border:none;border-radius:10px;padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif">Instalar</button>
+    <button onclick="document.getElementById('install-banner').remove()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:20px;cursor:pointer;padding:0 4px">×</button>
+  `;
+  document.body.appendChild(banner);
+}
+
+async function installApp() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const result = await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  document.getElementById('install-banner')?.remove();
+}
+
+// ---- INIT ----
+load();
+render();
+updateClock();
+setInterval(updateClock, 10000);
+</script>
+
+<!-- iOS install hint (shown only on Safari iOS if not standalone) -->
+<script>
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = window.navigator.standalone;
+if (isIOS && !isStandalone) {
+  setTimeout(() => {
+    const tip = document.createElement('div');
+    tip.style.cssText = `
+      position:fixed; bottom:max(env(safe-area-inset-bottom),8px); left:12px; right:12px;
+      background:rgba(15,12,41,0.95); backdrop-filter:blur(20px);
+      border:1px solid rgba(129,140,248,0.3); border-radius:16px;
+      padding:14px 16px; z-index:200;
+      font-family:'DM Sans',sans-serif; text-align:center;
+      box-shadow:0 8px 32px rgba(0,0,0,0.5);
+    `;
+    tip.innerHTML = `
+      <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:4px">📲 Agregar a pantalla de inicio</div>
+      <div style="font-size:12px;color:#a5b4fc;line-height:1.5">
+        Tocá <strong style="color:#fff">Compartir</strong> (⬆) → <strong style="color:#fff">Agregar a inicio</strong>
+      </div>
+      <button onclick="this.parentElement.remove()" style="margin-top:10px;background:rgba(129,140,248,0.2);border:1px solid rgba(129,140,248,0.3);color:#818cf8;border-radius:8px;padding:6px 16px;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600">Entendido</button>
+    `;
+    document.body.appendChild(tip);
+  }, 2500);
+}
+</script>
+
+</body>
+</html>
